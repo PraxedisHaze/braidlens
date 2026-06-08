@@ -6,12 +6,15 @@ local, user-approved filesystem window.
 Current install target:
 
 - Gemini: `install/gemini.user.js`
+- ChatGPT: `install/chatgpt.user.js`
+- Perplexity: `install/perplexity.user.js`
 
 The bridge supports:
 
 - `READ_FILE`: read a file inside the bound folder.
 - `READ_FILE_CHUNK`: read a later chunk of a large file.
 - `LIST_DIR`: list a directory inside the bound folder.
+- `APPEND_FILE`: add content to the end of an existing file inside `QuAId/` without truncating it.
 - `WRITE_FILE`: write only inside `QuAId/` under the bound folder.
 
 The write rule is intentional. Browser AIs may draft freely inside `QuAId/`,

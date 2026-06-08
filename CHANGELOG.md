@@ -1,5 +1,16 @@
 # Changelog
 
+## 2026-06-07 (parity update)
+
+- Brought `install/chatgpt.user.js` (v2.4.1 → v2.6) and `install/perplexity.user.js` (v2.0 → v2.1) up to functional parity with the Gemini bridge:
+  - `[APPEND_FILE]` support
+  - Stream-aware processed-flag fix (`hasIncompleteCommandTag`) so large `[WRITE_FILE]`/`[APPEND_FILE]` blocks no longer silently fail
+  - `CHUNK_LIMIT` raised 25,000 → 100,000
+  - Truncation notice corrected/aligned to point at the real local tool (`query_casey.py`, run by a Braid member with shell access)
+  - Reliable send: replaced fixed-delay-plus-fake-Enter-keypress with a poll loop that waits for the real Send button to enable
+- Each fix was adapted to the target script's existing selectors and naming conventions (`quaidProcessed`/`quaidDirectoryHandle` for ChatGPT, `braidProcessed`/`directoryHandle` and the React value-setter pattern for Perplexity) rather than copy-pasted wholesale.
+- Updated `README.md` to list all three install targets and the `APPEND_FILE` command.
+
 ## 2026-06-07
 
 - Bumped Gemini bridge to v2.6.

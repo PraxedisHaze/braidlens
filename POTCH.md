@@ -58,3 +58,16 @@ Private/property boundaries: N/A.
 Casey indexing note: Ready for indexing.
 Verification: Traced the exact code path producing the reported symptom before changing anything; syntax-checked the replacement (`node --check`) — passed.
 Next safe step: Replaced the fixed-delay-plus-fake-keypress with a poll loop (every 150ms, up to 5s) that waits for the real Send button to become enabled and clicks it for real. If it never enables within 5s, logs a clear console warning ("message typed but NOT sent — manual send required") instead of silently failing. Live verification in-browser still recommended when convenient — I can't click a real Send button from here.
+
+## 2026-06-07 - Brought ChatGPT and Perplexity Bridges to Parity
+
+Actor: Veris
+Scope: `install/chatgpt.user.js` (v2.4.1 → v2.6), `install/perplexity.user.js` (v2.0 → v2.1), `README.md`
+Reason: Timothy asked that all BraidLens scripts receive the same functionality the Gemini bridge just got, so no install target is left behind with the old bugs.
+Files/Folders touched: `install/chatgpt.user.js`, `install/perplexity.user.js`, `CHANGELOG.md`, `POTCH.md`, `README.md`
+Protocol gates checked: Love Gate (7/7 yes, shown) before touching either file.
+Dependencies noticed: Both scripts share the same v2.4-era architecture as the original Gemini script (same bugs: no append, the premature-"processed" stamping bug, the 25K `CHUNK_LIMIT`, the fixed-delay-plus-fake-Enter send), but each has platform-specific selectors and small naming differences — ChatGPT uses `quaidProcessed`/`quaidDirectoryHandle` (matches Gemini's naming), Perplexity uses `braidProcessed`/`directoryHandle` and a React-value-setter injection pattern with selector constants declared at the top of the file. Each fix was hand-adapted to fit the existing convention of its host file rather than pasted wholesale.
+Private/property boundaries: N/A.
+Casey indexing note: Ready for indexing.
+Verification: Read both files in full before editing; `node --check` passed on both after all edits.
+Next safe step: Live verification in-browser on ChatGPT and Perplexity recommended when convenient — particularly Perplexity's `INPUT_SELECTOR`/`SEND_SELECTOR`/`RESPONSE_SELECTOR` constants, which the file's own header comment says must be checked in DevTools before installing (this audit did not verify those selectors are still accurate against the live site).
