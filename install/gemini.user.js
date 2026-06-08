@@ -1,8 +1,8 @@
 // ==UserScript==
-// @name         The Braid Lens (Gemini Bridge - v2.4 Final)
+// @name         The Braid Lens (Gemini Bridge - v2.6 Append + Stream-Aware Fix)
 // @namespace    http://tampermonkey.net/
-// @version      2.4
-// @description  Trust Architecture. Draggable UI. Anti-Stacking Boop. Past-Life Sweep. Improved DOM Injection.
+// @version      2.6
+// @description  Trust Architecture. Draggable UI. Anti-Stacking Boop. Past-Life Sweep. Append Support. Stream-aware processed-flag fix.
 // @author       Gemini & Timothy
 // @match        *://gemini.google.com/*
 // @grant        none
@@ -11,7 +11,7 @@
 (function() {
     'use strict';
 
-    console.log("%c[Gemini Lens]: WAKING UP - v2.4 Active (Audited & Final)", "color: #22d3ee; font-size: 16px; font-weight: bold;");
+    console.log("%c[Gemini Lens]: WAKING UP - v2.6 Active (Append Enabled, Stream-Aware Fix)", "color: #22d3ee; font-size: 16px; font-weight: bold;");
 
     let quaidDirectoryHandle = null;
     let isExecutingCommand = false;
@@ -100,6 +100,7 @@
     function sanitizeContent(content) {
         return content.replace(/\[READ_FILE/g, '&#91;READ_FILE')
                       .replace(/\[WRITE_FILE/g, '&#91;WRITE_FILE')
+                      .replace(/\[APPEND_FILE/g, '&#91;APPEND_FILE')
                       .replace(/\[LIST_DIR/g, '&#91;LIST_DIR');
     }
 
@@ -136,7 +137,7 @@
             let output = `[FILE_CONTENTS: ${safePath} | Offset: ${offset}]\n${sanitizedChunk}\n[/FILE_CONTENTS]`;
 
             if (fullContent.length > offset + CHUNK_LIMIT) {
-                output += `\n[SYSTEM_NOTICE: FILE TRUNCATED. Issue command: [READ_FILE_CHUNK: ${safePath} | offset: ${offset + CHUNK_LIMIT}] ]`;
+                output += `\n[SYSTEM_NOTICE: FILE TRUNCATED. You can read the next chunk with [READ_FILE_CHUNK: ${safePath} | offset: ${offset + CHUNK_LIMIT}], or if you're hunting a specific topic, ask a Braid member with local shell access to run query_casey.py against Casey's fragment index and relay back the matching pieces.]`;
             }
             injectTextAndSend(output);
         } catch (err) {
@@ -191,6 +192,35 @@
         }
     }
 
+    async function executeAppendTag(filepath, content) {
+        if (!quaidDirectoryHandle) return;
+        try {
+            const safePath = normalizePath(filepath);
+            const parts = safePath.split(/[/\\]/);
+            const filename = parts.pop();
+            let currentDir = quaidDirectoryHandle;
+
+            for (const part of parts) {
+                if (part) currentDir = await currentDir.getDirectoryHandle(part, { create: true });
+            }
+
+            const fileHandle = await currentDir.getFileHandle(filename, { create: true });
+            const file = await fileHandle.getFile();
+
+            // keepExistingData prevents truncation; seek moves the cursor to the end
+            const writable = await fileHandle.createWritable({ keepExistingData: true });
+            await writable.seek(file.size);
+
+            // Newline safety buffer in case the file didn't end on one
+            await writable.write("\n" + content);
+            await writable.close();
+
+            injectTextAndSend(`[SYSTEM_NOTICE: Successfully appended to ${safePath}]`);
+        } catch (err) {
+            injectTextAndSend(`[SYSTEM_ERROR: Could not append to ${filepath}.]`);
+        }
+    }
+
     // --- 5. THE OBSERVER & PAST-LIFE SWEEP ---
     function stripBridgeOutput(text) {
         let stripped = text;
@@ -199,6 +229,25 @@
         stripped = stripped.replace(/\[SYSTEM_ERROR:.*?\]/g, "");
         stripped = stripped.replace(/\[SYSTEM_NOTICE:.*?\]/g, "");
         return stripped;
+    }
+
+    // Detects an opening bracket-tag whose matching closing tag hasn't streamed in yet.
+    // Used to avoid prematurely stamping a still-streaming response as "processed" —
+    // which previously caused large [WRITE_FILE]/[APPEND_FILE] blocks to silently never fire
+    // when a mid-stream pause exceeded the 1s debounce before the closing tag arrived.
+    function hasIncompleteCommandTag(text) {
+        if (/\[WRITE_FILE:/.test(text) && !/\[\/WRITE_FILE\]/.test(text)) return true;
+        if (/\[APPEND_FILE:/.test(text) && !/\[\/APPEND_FILE\]/.test(text)) return true;
+        if (/\[FILE_CONTENTS:/.test(text) && !/\[\/FILE_CONTENTS\]/.test(text)) return true;
+        if (/\[DIRECTORY_LIST:/.test(text) && !/\[\/DIRECTORY_LIST\]/.test(text)) return true;
+
+        const lastReadOpen = Math.max(text.lastIndexOf('[READ_FILE:'), text.lastIndexOf('[READ_FILE_CHUNK:'));
+        if (lastReadOpen !== -1 && text.indexOf(']', lastReadOpen) === -1) return true;
+
+        const lastListOpen = text.lastIndexOf('[LIST_DIR:');
+        if (lastListOpen !== -1 && text.indexOf(']', lastListOpen) === -1) return true;
+
+        return false;
     }
 
     function startObserver() {
@@ -229,6 +278,14 @@
                     return;
                 }
 
+                const appendMatch = /\[APPEND_FILE:\s*([^\]]+)\]([\s\S]*?)\[\/APPEND_FILE\]/g.exec(textContent);
+                if (appendMatch) {
+                    isExecutingCommand = true;
+                    lastNode.dataset.quaidProcessed = "true";
+                    executeAppendTag(appendMatch[1].trim(), appendMatch[2].trim());
+                    return;
+                }
+
                 const readMatch = /\[READ_FILE:\s*([^\]]+)\]/g.exec(textContent);
                 if (readMatch) {
                     isExecutingCommand = true;
@@ -253,8 +310,11 @@
                     return;
                 }
 
-                // Catch-all: Mark non-command responses as processed
-                if ((lastNode.innerText || "").length > 0) {
+                // Catch-all: mark non-command responses as processed — but only if no
+                // command tag is mid-stream (open without its close). A node with an
+                // incomplete tag is left unstamped so the observer re-checks it once
+                // the rest of the response renders in.
+                if (!hasIncompleteCommandTag(textContent) && (lastNode.innerText || "").length > 0) {
                     lastNode.dataset.quaidProcessed = "true";
                 }
 

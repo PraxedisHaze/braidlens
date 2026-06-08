@@ -51,6 +51,17 @@ Forbidden examples:
 [WRITE_FILE: C:/Users/Praxillax/file.md]
 ```
 
+## Append File
+
+```text
+[APPEND_FILE: QuAId/drafts/example.md]
+Content to add to the end of the file goes here.
+[/APPEND_FILE]
+```
+
+Adds content to the end of an existing file (creating it if missing) without
+truncating what's already there. Same path rules as `WRITE_FILE`.
+
 ## Result Blocks
 
 The bridge replies with blocks like:
