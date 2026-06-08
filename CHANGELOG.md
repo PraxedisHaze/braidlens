@@ -8,6 +8,7 @@
 - Corrected an in-progress edit to the truncation notice that referenced a nonexistent `CASEY_SEARCH` command; reworded to point at the real local tool (`Lenny/query_casey.py`, run by a Braid member with shell access and relayed back).
 - Raised `CHUNK_LIMIT` from 25,000 to 100,000 characters. The bridge already reads the full file into memory before slicing — the limit only ever governed how much got pasted into chat per round-trip. The old value forced most real project files into several manual `[READ_FILE_CHUNK]` round-trips; the new value lets the large majority arrive in one read.
 - Added `applings/BraidLens/POTCH.md`.
+- Fixed intermittent "typed but not sent" behavior: `injectTextAndSend` now polls (every 150ms, up to 5s) for Gemini's Send button to actually become enabled, instead of guessing a flat 300ms delay and falling back to a synthetic Enter keypress that Gemini's framework silently ignores.
 
 ## 2026-05-27
 

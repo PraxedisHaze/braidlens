@@ -45,3 +45,16 @@ Private/property boundaries: N/A.
 Casey indexing note: Ready for indexing — but flag this entry specifically; it reverses a "critical finding" from the same audit and should not be read in isolation.
 Verification: None yet — this is a recorded design clarification, not an executed fix. Explicitly deferred per Timothy: "this is not what we came to do."
 Next safe step (NOT done, NOT this session): Rewrite `README.md` and `docs/SAFETY_MODEL.md` to describe the real intended model (full read/write within the bound folder + subfolders, blind to everything outside it), confirm the File System Access API genuinely enforces the "blind to outside" boundary at the browser level, and design/build the folder-picker UI Timothy named as still-needed. Until this is done, BraidLens's published safety story remains inaccurate — this is the actual blocker for "ready for sale," just not the one originally diagnosed.
+
+## 2026-06-07 - Fixed Intermittent "Typed But Not Sent" Behavior
+
+Actor: Veris
+Scope: `install/gemini.user.js` — `injectTextAndSend()`
+Reason: Timothy reported that the bridge often (not always) types its message into Gemini's input field but doesn't actually send it, requiring a manual click.
+Files/Folders touched: `install/gemini.user.js`, `CHANGELOG.md`, `POTCH.md`
+Protocol gates checked: Love Gate (7/7 yes, shown).
+Dependencies noticed: The old code waited a flat 300ms then checked whether Gemini's Send button was enabled. Gemini's UI takes a *variable* amount of time to register injected text and enable that button (depends on page load/render state) — a fixed delay sometimes loses the race. When it lost, the code fell back to dispatching a synthetic `KeyboardEvent('keydown', {key:'Enter'})`. Script-dispatched keyboard events are untrusted and Gemini's framework does not treat them as a send trigger — so the fallback silently did nothing, which is exactly the symptom reported ("posts it to the field, but I have to hit send").
+Private/property boundaries: N/A.
+Casey indexing note: Ready for indexing.
+Verification: Traced the exact code path producing the reported symptom before changing anything; syntax-checked the replacement (`node --check`) — passed.
+Next safe step: Replaced the fixed-delay-plus-fake-keypress with a poll loop (every 150ms, up to 5s) that waits for the real Send button to become enabled and clicks it for real. If it never enables within 5s, logs a clear console warning ("message typed but NOT sent — manual send required") instead of silently failing. Live verification in-browser still recommended when convenient — I can't click a real Send button from here.

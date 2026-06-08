@@ -87,18 +87,37 @@
         inputDiv.dispatchEvent(new Event('input', { bubbles: true, cancelable: true }));
         inputDiv.dispatchEvent(new Event('change', { bubbles: true }));
 
-        setTimeout(() => {
+        // Poll for the Send button to actually become enabled rather than guessing a
+        // fixed 300ms delay. Gemini's UI takes a variable amount of time to notice the
+        // injected text (depends on page load, response rendering, etc.) -- a flat delay
+        // sometimes wins the race and sometimes doesn't. The old fallback (a synthetic
+        // Enter keydown) is not a real fix: script-dispatched KeyboardEvents are not
+        // trusted events and Gemini's framework does not treat them as a send trigger,
+        // so it silently did nothing, leaving the message typed but unsent.
+        const POLL_INTERVAL_MS = 150;
+        const MAX_WAIT_MS = 5000;
+        let waited = 0;
+
+        const trySend = () => {
             const sendButton = document.querySelector('button.send-button, button[aria-label^="Send"]');
 
             if (sendButton && !sendButton.disabled) {
                 sendButton.click();
-            } else {
-                const enterEvent = new KeyboardEvent('keydown', { key: 'Enter', code: 'Enter', which: 13, keyCode: 13, bubbles: true });
-                inputDiv.dispatchEvent(enterEvent);
+                setTimeout(() => { isExecutingCommand = false; }, 1500);
+                return;
             }
 
-            setTimeout(() => { isExecutingCommand = false; }, 1500);
-        }, 300);
+            waited += POLL_INTERVAL_MS;
+            if (waited >= MAX_WAIT_MS) {
+                console.warn("[Gemini Lens]: Send button never enabled within 5s -- message typed but NOT sent. Manual send required.");
+                isExecutingCommand = false;
+                return;
+            }
+
+            setTimeout(trySend, POLL_INTERVAL_MS);
+        };
+
+        setTimeout(trySend, POLL_INTERVAL_MS);
     }
 
     // --- 3. SANITIZATION & SECURITY ---
