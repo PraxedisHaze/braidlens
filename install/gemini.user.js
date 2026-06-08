@@ -15,7 +15,12 @@
 
     let quaidDirectoryHandle = null;
     let isExecutingCommand = false;
-    const CHUNK_LIMIT = 25000;
+    // The bridge already loads the entire file into memory before slicing it —
+    // this constant only governs how much gets pasted into chat per round-trip.
+    // Raised from 25,000 (which forced most real project files into 3-6+ manual
+    // [READ_FILE_CHUNK] round-trips) to 100,000, so the large majority of files
+    // arrive in a single read while still bounding worst-case paste size.
+    const CHUNK_LIMIT = 100000;
     const BOOP_INTERVAL_MS = 300000;
 
     // --- 1. UI INJECTION (Draggable) ---

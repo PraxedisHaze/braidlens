@@ -16,3 +16,16 @@ Next safe step: Merge into `install/gemini.user.js`:
   2. the stream-aware "don't stamp processed while a command tag is incomplete" fix (v2.6),
   3. corrected truncation-notice wording that points at the real process — a Braid member with local shell access running `query_casey.py` and relaying fragments back — instead of the nonexistent `CASEY_SEARCH`.
   Then bump `@version` and add a CHANGELOG entry.
+
+## 2026-06-07 - Truncation Mechanism Actually Fixed (not just reworded)
+
+Actor: Veris
+Scope: `install/gemini.user.js` — `CHUNK_LIMIT` constant
+Reason: Timothy named that the truncation friction itself (not just the wording around it) needed fixing now, or it would never get circled back to.
+Files/Folders touched: `install/gemini.user.js`, `CHANGELOG.md`, `POTCH.md`
+Protocol gates checked: Love Gate (7/7 yes, shown).
+Dependencies noticed: Confirmed `executeReadTag` already calls `await file.text()` and holds the **entire** file in memory (`fullContent`) before ever slicing it — `CHUNK_LIMIT` was never a technical read-limit, only a per-message paste-size cap. Raising it costs nothing structurally.
+Private/property boundaries: N/A.
+Casey indexing note: Ready for indexing.
+Verification: Read the function source directly to confirm the full-file-in-memory behavior before changing the constant — did not assume.
+Next safe step: Raised `CHUNK_LIMIT` from 25,000 → 100,000 characters, with an inline comment explaining why this is safe. Most real project files will now arrive in a single `[READ_FILE]` round-trip instead of 3-6+. Worst-case (genuinely enormous files) still falls back to chunking, just far less often.
