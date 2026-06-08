@@ -29,3 +29,19 @@ Private/property boundaries: N/A.
 Casey indexing note: Ready for indexing.
 Verification: Read the function source directly to confirm the full-file-in-memory behavior before changing the constant — did not assume.
 Next safe step: Raised `CHUNK_LIMIT` from 25,000 → 100,000 characters, with an inline comment explaining why this is safe. Most real project files will now arrive in a single `[READ_FILE]` round-trip instead of 3-6+. Worst-case (genuinely enormous files) still falls back to chunking, just far less often.
+
+## 2026-06-07 - DESIGN CORRECTION (deferred — not actioned this session)
+
+Actor: Veris (recording a clarification from Timothy directly — not my call, not Codex's call)
+Scope: The entire write-boundary model described in `README.md` and `docs/SAFETY_MODEL.md`
+Reason: A full audit (requested by Timothy: "is BraidLens ready for sale — safety, accessibility, compatibility, all?") surfaced that the docs publish a `QuAId/`-only write restriction as the product's core "Trust Architecture" — but **no shipped script enforces it**. Timothy's response: that restriction was **Codex's interpretation, not his intent**, and he does not want it.
+
+**Timothy's stated correct design (recorded verbatim in spirit, 2026-06-07):**
+> The browser AI should be able to access just the one folder the user picks, and any subfolders within it — and be utterly blind to anything outside that folder and its subfolders. The user decides which folder. This needs a folder-picker UI eventually.
+
+**Important wrinkle worth flagging for whoever picks this up:** the *current code* (which has no `QuAId/` check — only blocks absolute paths and `..` traversal) is actually **closer to Timothy's real intent than the documentation is**. The bug isn't "the code is dangerously permissive" — it's "the docs describe a different, more restrictive model (Codex's `QuAId/`-only vision) that nobody built and nobody wants." The thing that's broken is the *documentation*, and possibly the depth of the "utterly blind to outside" guarantee (worth verifying the File System Access API's directory-handle sandboxing actually delivers that, rather than assuming).
+
+Private/property boundaries: N/A.
+Casey indexing note: Ready for indexing — but flag this entry specifically; it reverses a "critical finding" from the same audit and should not be read in isolation.
+Verification: None yet — this is a recorded design clarification, not an executed fix. Explicitly deferred per Timothy: "this is not what we came to do."
+Next safe step (NOT done, NOT this session): Rewrite `README.md` and `docs/SAFETY_MODEL.md` to describe the real intended model (full read/write within the bound folder + subfolders, blind to everything outside it), confirm the File System Access API genuinely enforces the "blind to outside" boundary at the browser level, and design/build the folder-picker UI Timothy named as still-needed. Until this is done, BraidLens's published safety story remains inaccurate — this is the actual blocker for "ready for sale," just not the one originally diagnosed.
