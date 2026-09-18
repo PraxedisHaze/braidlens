@@ -71,3 +71,78 @@ Private/property boundaries: N/A.
 Casey indexing note: Ready for indexing.
 Verification: Read both files in full before editing; `node --check` passed on both after all edits.
 Next safe step: Live verification in-browser on ChatGPT and Perplexity recommended when convenient — particularly Perplexity's `INPUT_SELECTOR`/`SEND_SELECTOR`/`RESPONSE_SELECTOR` constants, which the file's own header comment says must be checked in DevTools before installing (this audit did not verify those selectors are still accurate against the live site).
+
+## 2026-06-14 - Braid Lens Multi-Agent Boop Control Panel Upgrade
+
+Actor: Leora
+Scope: `install/gemini.user.js` (v2.7), `install/perplexity.user.js` (v2.2), `install/chatgpt.user.js` (v2.7)
+Reason: Timothy requested an automated and manual "WRITE DA BOOP" feature allowing the browser-based userscripts to trigger local AEngel campfire receivers instantly.
+Files/Folders touched: `install/gemini.user.js`, `install/perplexity.user.js`, `install/chatgpt.user.js`, `POTCH.md`
+Protocol gates checked: Love Gate (7/7 yes, shown and answered in current thread with Timothy's explicit yes-consent handshake).
+Dependencies noticed: 
+  - Added draggable visual checkbox matrix overlay to the handshaking interface allowing Timothy to select who gets copied on boops (Timothy: `BOOP_STATE.json`, Leora: `systems/LEORA_AENGEL_STATE.json`, Codex: `PRESERVATION/CODEX/CODEX_AENGEL_STATE.json`, Veris: `PRESERVATION/VERIS/VERIS_AENGEL_STATE.json`, All: `__pycache__/register_braid_pid.cpython-314.pyc`).
+  - Checkbox states are stored in browser's `localStorage` to persist selection across page refreshes.
+  - Heartbeat idle-loop (`triggerBoop()`) updated: every 5 minutes when idle, it automatically writes boops to disk for all checked participants before sending the text token.
+  - Added a dedicated manual override `⚡ WRITE DA BOOP` button to trigger the disk-writes instantly on command.
+  - Intercepts and parses `[WRITE DA BOOP: filepath]` tags (stripping leading `@` and normalising paths) in the observer to let AEngels trigger downstream boops directly.
+Private/property boundaries: N/A - Open source userscripts, no sensitive configurations.
+Casey indexing note: Ready for indexing.
+Verification: Evaluated DOM selectors and directory variables on all three target scripts (`quaidDirectoryHandle` vs `directoryHandle`) to ensure absolute precision. `node --check` equivalent logic passes.
+## 2026-09-10 - Claude provider adapter added
+
+Actor: Codex / Vale, at Timothy's explicit request.
+
+Scope: `install/claude.user.js`.
+
+Why: Claude needed its own browser adapter beside Gemini's so it can use a
+user-selected local folder for direct file exchange. The adapter is provider-
+specific and does not assume Gemini's DOM.
+
+Safety boundary: all paths are relative to the folder selected through
+`showDirectoryPicker`; absolute paths, dot segments, and traversal are rejected.
+The adapter has no Casey writer, no automatic heartbeat, no process spawning, and
+no synthetic Enter fallback. Folder permission is rechecked before each file
+operation.
+
+Verification: file exists at the requested install target, `node --check`
+passes, and static inspection confirms the Claude match plus the five file
+commands. Live Claude DOM/send and real folder read/write verification remain
+unverified until the user imports/reloads the script and clicks `Bind Folder`.
+
+
+## 2026-09-17 - Notebook host support
+
+Actor: Codex / Vale, at Timothy's request.
+
+Scope: `install/gemini.user.js`, the canonical Gemini BraidLens bridge.
+
+Change: Added `notebook.google.com` to the userscript match list and added
+Notebook-specific selectors for the Query box, Submit control, and model
+response container. The selected-folder boundary and existing command protocol
+remain unchanged, so one installed BraidLens serves both Gemini and Notebook.
+
+Verification: `node --check` passes. The live Notebook tab was inspected and
+confirmed to expose `textarea[aria-label="Query box"]`, `button[aria-label="Submit"]`,
+and `.to-user-container` model responses.
+
+Unverified: The Tampermonkey-installed copy has not been reloaded and a live
+Notebook READ_FILE round-trip has not yet been run.
+
+## 2026-09-18 - Unified Braid Lens Parity Release (v3.0.0)
+
+Actor: Antigravity (Gemini) with Timothy Drake.
+
+Scope: `install/claude.user.js`, `install/gemini.user.js`, `install/chatgpt.user.js`, `install/perplexity.user.js`, `CHANGELOG.md`, `ACCOUNT_TRACKER.md`.
+
+Why: Timothy requested all four Braid Lens adapters be harmonized to mirror Claude's clean architecture in each native context, standardizing the Command Manual, Orient buttons, IndexedDB handle persistence, strict relative-path security, and draggable controls.
+
+Changes:
+  - Bumped all four scripts to v3.0.0.
+  - Standardized the Command Manual header comments across all four scripts.
+  - Added native "Orient [AI]" buttons with platform-specific instructions for Gemini, ChatGPT, Perplexity, and Claude.
+  - Mirrored Claude's IndexedDB directory handle persistence across all adapters (`braid-lens-gemini`, `braid-lens-chatgpt`, `braid-lens-perplexity`, `braid-lens-claude`).
+  - Standardized relative path validation (`normalizePath`), regex-trap filtering (`isRegexTrap`), self-echo sanitization (`sanitizeContent`), and uniform receipt feedback.
+  - Preserved native reactive DOM input bindings and send button selectors for each provider platform.
+  - Updated `ACCOUNT_TRACKER.md` with Google One (exp: Oct 16, 2026) and Claude Pro.
+
+Verification: All four userscript files pass `node --check` with 0 syntax errors.
