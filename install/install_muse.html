@@ -1,0 +1,260 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Braid Lens — Muse v3.4.0 Installer</title>
+  <style>
+    :root {
+      --bg: #090d16;
+      --card-bg: #111827;
+      --border: #374151;
+      --accent: #ec4899;
+      --accent-glow: rgba(236, 72, 153, 0.25);
+      --text: #f9fafb;
+      --muted: #9ca3af;
+      --code-bg: #030712;
+      --green: #10b981;
+      --blue: #38bdf8;
+    }
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      background: var(--bg);
+      color: var(--text);
+      font-family: system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial, sans-serif;
+      padding: 32px 20px;
+      display: flex;
+      justify-content: center;
+      min-height: 100vh;
+    }
+    .container {
+      max-width: 760px;
+      width: 100%;
+    }
+    .header {
+      text-align: center;
+      margin-bottom: 28px;
+    }
+    .badge {
+      display: inline-block;
+      padding: 4px 12px;
+      border-radius: 9999px;
+      background: rgba(236, 72, 153, 0.15);
+      border: 1px solid var(--accent);
+      color: var(--accent);
+      font-size: 12px;
+      font-weight: 700;
+      letter-spacing: 0.05em;
+      text-transform: uppercase;
+      margin-bottom: 12px;
+    }
+    h1 {
+      font-size: 28px;
+      font-weight: 800;
+      margin-bottom: 8px;
+      background: linear-gradient(135deg, #fff 40%, var(--accent) 100%);
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+    }
+    p.lead {
+      color: var(--muted);
+      font-size: 15px;
+      line-height: 1.5;
+    }
+    .card {
+      background: var(--card-bg);
+      border: 1px solid var(--border);
+      border-radius: 14px;
+      padding: 24px;
+      margin-bottom: 20px;
+      box-shadow: 0 10px 30px rgba(0,0,0,0.4);
+    }
+    .card-title {
+      font-size: 18px;
+      font-weight: 700;
+      margin-bottom: 12px;
+      display: flex;
+      align-items: center;
+      gap: 10px;
+    }
+    .actions {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 14px;
+      margin-top: 18px;
+    }
+    .btn {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      gap: 8px;
+      padding: 12px 20px;
+      border-radius: 8px;
+      font-size: 14px;
+      font-weight: 700;
+      text-decoration: none;
+      cursor: pointer;
+      transition: all 0.15s ease;
+      border: none;
+    }
+    .btn-primary {
+      background: var(--accent);
+      color: #fff;
+      box-shadow: 0 4px 14px var(--accent-glow);
+    }
+    .btn-primary:hover {
+      filter: brightness(1.1);
+      transform: translateY(-1px);
+    }
+    .btn-secondary {
+      background: #1f2937;
+      color: #e5e7eb;
+      border: 1px solid #4b5563;
+    }
+    .btn-secondary:hover {
+      background: #374151;
+      color: #fff;
+    }
+    .features-list {
+      list-style: none;
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 12px;
+      margin: 16px 0;
+    }
+    @media (max-width: 600px) {
+      .features-list { grid-template-columns: 1fr; }
+    }
+    .feature-item {
+      display: flex;
+      align-items: flex-start;
+      gap: 8px;
+      font-size: 13px;
+      color: #d1d5db;
+    }
+    .feature-icon {
+      color: var(--accent);
+      font-weight: bold;
+    }
+    pre {
+      background: var(--code-bg);
+      border: 1px solid #1f2937;
+      border-radius: 8px;
+      padding: 14px;
+      color: #a7f3d0;
+      font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+      font-size: 12px;
+      overflow-x: auto;
+      max-height: 240px;
+      line-height: 1.4;
+    }
+    .instructions-box {
+      background: rgba(16, 185, 129, 0.08);
+      border: 1px solid rgba(16, 185, 129, 0.3);
+      border-radius: 8px;
+      padding: 16px;
+      margin-top: 14px;
+    }
+    .instructions-box h4 {
+      color: var(--green);
+      font-size: 14px;
+      margin-bottom: 6px;
+    }
+    .instructions-box ol {
+      padding-left: 20px;
+      color: #e5e7eb;
+      font-size: 13px;
+      line-height: 1.6;
+    }
+    .footer {
+      text-align: center;
+      margin-top: 24px;
+      color: var(--muted);
+      font-size: 12px;
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <div class="header">
+      <div class="badge">Braid Lens Architecture</div>
+      <h1>Muse BraidLens v3.4.2</h1>
+      <p class="lead">Universal & Dedicated Userscripts for Muse.ai and Meta AI</p>
+    </div>
+
+    <div class="card">
+      <div class="card-title">🚀 Fast 1-Click Tampermonkey Install</div>
+      <p style="color: var(--muted); font-size: 14px;">
+        Clicking either button below will prompt Tampermonkey in Chrome to install or update the userscript instantly:
+      </p>
+
+      <div class="actions">
+        <a class="btn btn-primary" href="muse.user.js">
+          ⚡ Install Dedicated Muse Lens (v3.4.2)
+        </a>
+        <a class="btn btn-secondary" href="universal.user.js">
+          🌐 Install Universal Braid Lens (v3.4.2)
+        </a>
+        <button class="btn btn-secondary" id="copyBtn">
+          📋 Copy Muse Script to Clipboard
+        </button>
+      </div>
+
+      <div class="instructions-box">
+        <h4>📋 How to Install & Update in Chrome Tampermonkey:</h4>
+        <ol>
+          <li><strong style="color: #f87171;">CRITICAL STEP:</strong> In your Chrome extension bar, click <strong>Tampermonkey</strong> &rarr; <strong>Dashboard</strong>. If you see an older <strong>v1.0.0</strong> or <strong>v3.4.0</strong> Muse script, <strong>toggle it OFF or Delete it</strong> so only v3.4.2 runs!</li>
+          <li>Click the pink <strong>Install Dedicated Muse Lens (v3.4.2)</strong> button above, or click <strong>Copy Muse Script to Clipboard</strong> and paste it into Tampermonkey.</li>
+          <li>Click <strong>Update</strong> or <strong>Save</strong> in Tampermonkey.</li>
+          <li>Switch to your <a href="https://muse.ai/library/artifacts" target="_blank" style="color:var(--accent);">Muse.ai tab</a> and refresh the page!</li>
+          <li>Verify the HUD says <strong>[MUSE LENS - v3.4.2]</strong>. Concurrency locks are active; duplicate receipts are completely prevented.</li>
+        </ol>
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="card-title">✨ What's New in Muse BraidLens v3.4.0</div>
+      <ul class="features-list">
+        <li class="feature-item"><span class="feature-icon">✔</span> <strong>Vernier Scrubber:</strong> Fisheye minimap scrubber with mousewheel zoom and turn jumping.</li>
+        <li class="feature-item"><span class="feature-icon">✔</span> <strong>Holodox 2 Seat:</strong> Live Meeting Hall seat on port 43921 as [muse] with token auth.</li>
+        <li class="feature-item"><span class="feature-icon">✔</span> <strong>Daily Gumroad Dispatch:</strong> Orient Muse includes rolling Gumroad revenue sentinel instructions.</li>
+        <li class="feature-item"><span class="feature-icon">✔</span> <strong>Casey Memory Bridge:</strong> Query memory bank on port 3333 via [FETCH_CASEY: query].</li>
+        <li class="feature-item"><span class="feature-icon">✔</span> <strong>IndexedDB Preservation:</strong> Automatically preserves existing bound <code>apps</code> folder handle.</li>
+        <li class="feature-item"><span class="feature-icon">✔</span> <strong>Live DOM Selectors:</strong> Tuned for modern Muse Hatch composer and message bubbles.</li>
+      </ul>
+    </div>
+
+    <div class="card">
+      <div class="card-title">📄 Raw Script Preview</div>
+      <pre id="codePreview">Loading script preview...</pre>
+    </div>
+
+    <div class="footer">
+      Unified Braid Protocol • Port 3333 • Axiom: Love, leading from logic, first in all things at all times.
+    </div>
+  </div>
+
+  <script>
+    fetch('muse.user.js')
+      .then(res => res.text())
+      .then(text => {
+        document.getElementById('codePreview').textContent = text.slice(0, 1500) + '\n\n... [' + text.length + ' bytes total]';
+        document.getElementById('copyBtn').addEventListener('click', () => {
+          navigator.clipboard.writeText(text).then(() => {
+            const btn = document.getElementById('copyBtn');
+            const orig = btn.textContent;
+            btn.textContent = '✅ Copied to Clipboard!';
+            btn.style.background = '#059669';
+            setTimeout(() => {
+              btn.textContent = orig;
+              btn.style.background = '';
+            }, 2500);
+          });
+        });
+      })
+      .catch(err => {
+        document.getElementById('codePreview').textContent = 'Error loading script preview: ' + err.message;
+      });
+  </script>
+</body>
+</html>

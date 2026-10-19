@@ -38,7 +38,7 @@
 
     var directoryHandle = null;
     var commandBusy = false;
-        var statusElement = null;
+    var statusElement = null;
     var boopEnabled = false;
     var boopTimer = null;
     var boopButton = null;
@@ -99,12 +99,8 @@
                 input.textContent = text;
             }
         }
-        input.dispatchEvent(new InputEvent('input', {
-            bubbles: true,
-            cancelable: true,
-            data: text,
-            inputType: 'insertText'
-        }));
+        input.dispatchEvent(new InputEvent('beforeinput', { bubbles: true, cancelable: true, data: text, inputType: 'insertText' }));
+        input.dispatchEvent(new InputEvent('input', { bubbles: true, cancelable: true, data: text }));
         input.dispatchEvent(new Event('change', { bubbles: true }));
     }
 
@@ -158,8 +154,7 @@
 
             if (Date.now() >= deadline) {
                 commandBusy = false;
-                setStatus('Text inserted, but Claude did not expose an enabled Send button.');
-                log('send button unavailable; no synthetic keypress fallback used');
+                setStatus('Text inserted, but Claude send button was not ready. Press Enter or Send.');
                 return;
             }
             window.setTimeout(trySend, 150);
@@ -167,6 +162,7 @@
 
         trySend();
     }
+
     function setStatus(message) {
         if (statusElement) statusElement.textContent = message;
         log(message);
@@ -188,7 +184,6 @@
         'Do not use [LIST_DIR: .] for the root; use [LIST_DIR:] exactly.',
         'Put one command tag on its own line. Do not claim success until the bridge returns a FILE_CONTENTS, DIRECTORY_LIST, WRITE_RESULT, or SYSTEM_NOTICE receipt.',
         'This adapter does not provide Casey sync. Its optional five-minute boop is controlled by Timothy and is OFF by default.',
-        'A real example fixture is at applings/BraidLens/examples/claude-bridge-example.md.',
         '[/CLAUDE BRIDGE INSTRUCTIONS]'
     ].join('\n');
 
@@ -206,13 +201,12 @@
     }
 
     function claudeIsGenerating() {
-        return Array.from(document.querySelectorAll('button')).some(function (button) {
-            var label = (button.getAttribute('aria-label') || '') + ' ' +
-                (button.getAttribute('data-testid') || '') + ' ' +
-                (button.textContent || '');
+        return Array.from(document.querySelectorAll('button, [role="button"]')).some(function (button) {
+            var label = (button.getAttribute('aria-label') || '') + ' ' + (button.textContent || '');
             return isVisibleElement(button) && !button.disabled && /stop/i.test(label);
         });
     }
+
     function updateBoopButton() {
         if (!boopButton) return;
         boopButton.textContent = boopEnabled ? 'Boop: ON' : 'Boop: OFF';
@@ -250,6 +244,7 @@
         var offsetY = 0;
 
         element.addEventListener('mousedown', function (event) {
+            if (event.target.tagName === 'BUTTON' || event.target.tagName === 'INPUT' || event.target.tagName === 'SUMMARY') return;
             dragging = true;
             moved = false;
             var rect = element.getBoundingClientRect();
@@ -477,12 +472,9 @@
         var nodes = selectors.flatMap(function (selector) {
             return Array.from(document.querySelectorAll(selector));
         });
-        var responseHeadings = Array.from(document.querySelectorAll('h1, h2, h3, [role="heading"]'))
-            .filter(function (heading) {
-                return /^Claude responded:/i.test(serializeNode(heading).trim());
-            });
-        return uniqueNodes(nodes.concat(responseHeadings));
+        return uniqueNodes(nodes);
     }
+
     function stripBridgeOutput(text) {
         return text
             .replace(/\[FILE_CONTENTS:[\s\S]*?\[\/FILE_CONTENTS\]/g, '')
@@ -545,21 +537,22 @@
 
         if (recognized || !hasBridgeCommand(text)) node.setAttribute(PROCESSED_ATTR, 'true');
     }
+
     function injectPanel() {
         if (document.getElementById('braid-lens-claude-panel')) return;
 
         var panel = document.createElement('div');
         panel.id = 'braid-lens-claude-panel';
-        panel.style.cssText = 'position:fixed;top:72px;right:20px;z-index:2147483647;width:360px;padding:14px;background:linear-gradient(160deg,#111827 0%,#172554 100%);color:#f9fafb;border:2px solid #10b981;border-radius:12px;box-shadow:0 8px 28px rgba(0,0,0,.5);font:12px/1.4 system-ui,-apple-system,Segoe UI,sans-serif;';
+        panel.style.cssText = 'position:fixed;top:72px;right:20px;z-index:2147483647;width:360px;padding:14px;background:linear-gradient(160deg,#111827 0%,#172554 100%);color:#f9fafb;border:2px solid #10b981;border-radius:12px;box-shadow:0 8px 28px rgba(0,0,0,.5);font:12px/1.4 system-ui,-apple-system,Segoe UI,sans-serif;user-select:none;';
 
         var title = document.createElement('div');
         title.textContent = 'Braid Lens - Claude v' + VERSION;
-        title.style.cssText = 'font-weight:bold;color:#6ee7b7;margin-bottom:8px;';
+        title.style.cssText = 'font-weight:bold;color:#6ee7b7;margin-bottom:8px;cursor:move;';
         panel.appendChild(title);
 
         var bind = document.createElement('button');
         bind.textContent = 'Bind Folder';
-        bind.style.cssText = 'padding:6px 9px;background:#059669;color:white;border:0;border-radius:4px;cursor:pointer;margin-right:6px;';
+        bind.style.cssText = 'padding:6px 9px;background:#059669;color:white;border:0;border-radius:4px;cursor:pointer;margin-right:6px;font-weight:bold;';
         var wasDragged = makeDraggable(panel);
 
         bind.addEventListener('click', function () {
@@ -581,7 +574,7 @@
 
         var orient = document.createElement('button');
         orient.textContent = 'Orient Claude';
-        orient.style.cssText = 'padding:6px 9px;background:#0ea5e9;color:white;border:0;border-radius:4px;cursor:pointer;margin:6px 6px 0 0;';
+        orient.style.cssText = 'padding:6px 9px;background:#0ea5e9;color:white;border:0;border-radius:4px;cursor:pointer;margin:6px 6px 0 0;font-weight:bold;';
         orient.addEventListener('click', function () {
             if (wasDragged()) return;
             sendBridgeInstructions();
@@ -595,10 +588,11 @@
         guideSummary.style.cssText = 'cursor:pointer;color:#bfdbfe;font-weight:bold;';
         guide.appendChild(guideSummary);
         var guideBody = document.createElement('div');
-        guideBody.textContent = 'Start at the bound-folder root: [LIST_DIR:]\nRead a root file: [READ_FILE: README.md]\nRead a nested file: [READ_FILE: PRESERVATION/Timothy/Idioms of the Aletheari Anothen.md]\nThe single period (.) is only the optional five-minute boop; it is not a folder path.\nWrite and append examples are in applings/BraidLens/examples/claude-bridge-example.md';
+        guideBody.textContent = 'Start at the bound-folder root: [LIST_DIR:]\nRead a root file: [READ_FILE: README.md]\nRead a nested file: [READ_FILE: PRESERVATION/Timothy/Idioms of the Aletheari Anothen.md]\nThe single period (.) is only the optional five-minute boop; it is not a folder path.\nWrite and append examples are supported directly.';
         guideBody.style.cssText = 'margin-top:7px;color:#d1d5db;white-space:pre-wrap;font:11px/1.45 ui-monospace,SFMono-Regular,Consolas,monospace;';
         guide.appendChild(guideBody);
         panel.appendChild(guide);
+
         boopButton = document.createElement('button');
         boopButton.style.cssText = 'padding:6px 9px;background:#374151;color:white;border:0;border-radius:4px;cursor:pointer;margin:6px 6px 0 0;';
         boopButton.addEventListener('click', function () {
@@ -607,6 +601,7 @@
         });
         panel.appendChild(boopButton);
         updateBoopButton();
+
         var diagnose = document.createElement('button');
         diagnose.textContent = 'Diagnose';
         diagnose.style.cssText = 'padding:6px 9px;background:#4f46e5;color:white;border:0;border-radius:4px;cursor:pointer;';
@@ -619,7 +614,6 @@
                 'Send: ' + (findSendButton() ? 'FOUND' : 'NOT FOUND') + '\n' +
                 'Assistant messages: ' + assistantMessages().length + '\n' +
                 'Bound folder: ' + (directoryHandle ? directoryHandle.name : 'NONE') + '\n' +
-                'Casey sync: DISABLED\n' +
                 'Boop: ' + (boopEnabled ? 'ON' : 'OFF');
             setStatus(report.replace(/\n/g, ' | '));
             injectTextAndSend(report);
@@ -628,7 +622,7 @@
 
         statusElement = document.createElement('div');
         statusElement.textContent = 'No folder bound.';
-        statusElement.style.cssText = 'margin-top:8px;color:#d1d5db;white-space:pre-wrap;';
+        statusElement.style.cssText = 'margin-top:8px;color:#d1d5db;white-space:pre-wrap;font-family:monospace;font-size:11px;';
         panel.appendChild(statusElement);
         document.body.appendChild(panel);
 
@@ -669,5 +663,3 @@
 
     boot();
 })();
-
-

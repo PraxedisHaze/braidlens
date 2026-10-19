@@ -3,11 +3,14 @@
 Braid Lens is a Tampermonkey bridge for browser-based AI sessions that need a
 local, user-approved filesystem window.
 
-Current install target:
+Current install targets:
 
-- Gemini: `install/gemini.user.js`
+- **Universal Braid Lens (Single Script for All Agents)**: `install/universal.user.js` (v3.4.0)
+- Grok: `install/grok.user.js` (v3.3.0; drive bridge, Holodox 2 seat, Vernier Scrubber)
+- Gemini and Notebook: `install/gemini.user.js`
 - ChatGPT: `install/chatgpt.user.js`
 - Perplexity: `install/perplexity.user.js`
+- Claude: install/claude.user.js (v1.0.0; selected-folder bridge, Casey sync and heartbeat disabled)
 
 The bridge supports:
 
@@ -27,8 +30,8 @@ project file directly. A local operator reviews and moves accepted work.
 2. Create a new userscript.
 3. Paste the contents of `install/gemini.user.js`.
 4. Save it.
-5. Open Gemini.
-6. Click `Bind QuAId Directory`.
+5. Open Gemini or Notebook.
+6. Click `Bind Working Directory`.
 7. Choose the folder that contains or should contain `QuAId/`.
 
 ## Recommended Folder Shape
@@ -54,4 +57,9 @@ Braid Lens is not autonomous. It only acts when:
 
 Read access comes from the selected bound folder. Write access is restricted to
 `QuAId/`.
+Provider note: `install/claude.user.js` uses the same user-selected-folder boundary
+but intentionally permits reads and writes throughout that selected folder and
+its descendants. It does not write to Casey, start a heartbeat, spawn processes,
+or use synthetic keypresses. Claude must be re-authorized with `Bind Folder` when
+browser permission is not retained after a reload.
 

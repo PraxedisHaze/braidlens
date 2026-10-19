@@ -1,0 +1,179 @@
+--- braid_lens_universal_v3.5.user.js
++++ braid_lens_universal_v3.5.user.js
+@@ -1,7 +1,7 @@
+// ==UserScript==
+// @name The Universal Braid Lens (Unified Bridge, Holodox Seat & Vernier Scrubber - v3.5.0)
+// @namespace braid.lens
+-// @version 3.4.0
++// @version 3.5.0
+// @description Universal Braid Lens: Drive bridge, native Holodox 2 Meeting Hall seat, Vernier Fisheye Scrubber, and Casey memory bridge for ChatGPT, Claude, Gemini, Penni (NotebookLM), Grok, Duck.ai, Perplexity, DeepSeek, and Muse.
+// @author Timothy, Leora, Claude, Grok, ChatGPT & Codex
+// @match ://.chatgpt.com/*
+@@ -130,39 +130,43 @@
+token: 'Penni7634xlUI40ZTYfN1AreHfHNvymbCf-TnzOQ',
+accent: '#c084fc',
+bgGradient: 'linear-gradient(160deg,#18181b 0%,#3b0764 100%)',
+
+       strictDom: true,
+       match: function (h, p) {
+           return h.includes('notebook.google.com') || h.includes('notebooklm.google.com');
+           return h === 'notebook.google.com' || h === 'notebooklm.google.com' ||
+               h.endsWith('.notebook.google.com') || h.endsWith('.notebooklm.google.com');
+       },
+       inputs: [
+           'textarea[aria-label*="query" i]',
+           'textarea[placeholder*="Ask" i]',
+           'textarea[placeholder*="query" i]',
+           '.query-input textarea',
+           'div[contenteditable="true"][role="textbox"]',
+           'div[contenteditable="true"]',
+           'rich-textarea > div',
+           'textarea'
+           'textarea.query-box-input',
+           'textarea[aria-label="Query box"]',
+           'textarea[placeholder="Ask a question or create something"]',
+           'textarea[placeholder="Start typing..."]',
+           '.query-input textarea'
+       ],
+       sends: [
+           'button[aria-label*="Submit" i]',
+           'button[aria-label*="Send" i]',
+           'button[aria-label*="Query" i]',
+           '.send-button',
+           'button.send-button',
+           'button[type="submit"]'
+           'button.submit-button[aria-label="Submit"]',
+           'button[aria-label="Submit"].submit-button',
+           'button.submit-button'
+       ],
+       assistants: [
+           '.chat-message-container',
+           'div[data-message-author-role="model"]',
+           '.model-response-text',
+           'message-content',
+           '[role="log"] .to-user-container',
+           '.chat-panel-content .to-user-container',
+           '.to-user-container',
+           '.source-grounded-response',
+           '.response-container-content',
+           '.markdown',
+           '.prose'
+           '.response-container-content'
+       ],
+       isGenerating: function () {
+           return hasMatchingButton(/stop|cancel/i);
+           var chat = document.querySelector('chat-panel') ||
+               document.querySelector('[role="log"]') ||
+               document.querySelector('.chat-panel-content');
+           if (!chat) return false;
+           return Array.from(chat.querySelectorAll('button, [role="button"]')).some(function (btn) {
+               var label = (btn.getAttribute('aria-label') || '') + ' ' + (btn.textContent || '');
+               return isVisible(btn) &&
+                   !btn.disabled &&
+                   btn.getAttribute('aria-disabled') !== 'true' &&
+                   /stop|cancel/i.test(label);
+           });
+       }
+   },
+   gemini: {
+
+@@ -427,20 +431,31 @@
+// ==========================================
+
+Code
+ function findInput() {
+   var selectors = platform.inputs.concat(PLATFORMS.generic.inputs);
+   var selectors = platform.strictDom ? platform.inputs : platform.inputs.concat(PLATFORMS.generic.inputs);
+   for (var i = 0; i < selectors.length; i++) {
+       var el = document.querySelector(selectors[i]);
+       if (el && isVisible(el)) return el;
+   }
+   if (platform.strictDom) return null;
+   return document.querySelector('textarea') || document.querySelector('[contenteditable="true"]');
+
+}
+
+function isUsableButton(btn) {
+
+   return !!btn &&
+       isVisible(btn) &&
+       !btn.disabled &&
+       btn.getAttribute('aria-disabled') !== 'true' &&
+       !btn.classList.contains('disabled');
+
+}
+
+function findSendButton() {
+
+   var selectors = platform.sends.concat(PLATFORMS.generic.sends);
+   var selectors = platform.strictDom ? platform.sends : platform.sends.concat(PLATFORMS.generic.sends);
+   for (var i = 0; i < selectors.length; i++) {
+       var btn = document.querySelector(selectors[i]);
+       if (btn && !btn.disabled && isVisible(btn)) return btn;
+   }
+       if (isUsableButton(btn)) return btn;
+   }
+   if (platform.strictDom) return null;
+
+   var input = findInput();
+   if (input) {
+
+@@ -449,7 +464,7 @@
+var buttons = Array.from(container.querySelectorAll('button'));
+var found = buttons.find(function (b) {
+var text = (b.getAttribute('aria-label') || b.textContent || '').toLowerCase();
+
+               return isVisible(b) && !b.disabled && !/mic|attach|upload/i.test(text);
+               return isUsableButton(b) && !/mic|attach|upload/i.test(text);
+           });
+           if (found) return found;
+       }
+
+@@ -462,7 +477,19 @@
+return String(input.value || input.innerText || input.textContent || '').trim();
+}
+
+function dismissPlatformOverlay() {
+   if (platform.id !== 'penni') return;
+   var overlay = document.querySelector('.cdk-overlay-container .citation-tooltip-text');
+   if (!overlay) return;
+   document.dispatchEvent(new KeyboardEvent('keydown', {
+       key: 'Escape',
+       code: 'Escape',
+       bubbles: true
+   }));
+}
+function setInputText(input, text) {
+   dismissPlatformOverlay();
+   input.focus();
+   if (input.tagName.toLowerCase() === 'rich-textarea' && 'value' in input) {
+       input.value = text;
+
+@@ -505,7 +532,7 @@
+
+Code
+     function trySend() {
+         var button = findSendButton();
+       if (button && !button.disabled && currentInputText(input)) {
+       if (isUsableButton(button) && currentInputText(input)) {
+           button.click();
+           setStatus('Message sent to ' + platform.name + '.');
+           window.setTimeout(function () { commandBusy = false; }, 1200);
+
+@@ -550,7 +577,7 @@
+}
+
+Code
+ function assistantMessages() {
+   var selectors = platform.assistants.concat(PLATFORMS.generic.assistants);
+   var selectors = platform.strictDom ? platform.assistants : platform.assistants.concat(PLATFORMS.generic.assistants);
+   var nodes = selectors.flatMap(function (selector) {
+       return Array.from(document.querySelectorAll(selector));
+   });
+
+@@ -833,8 +860,8 @@
+'NESTED FOLDER: [LIST_DIR: PRESERVATION/Timothy]',
+'NESTED FILE: [READ_FILE: PRESERVATION/Timothy/Idioms of the Aletheari Anothen.md]',
+'LARGE FILE: [READ_FILE_CHUNK: relative/path.md | offset: 100000]',
+
+   'WRITE FILE:       &#91;WRITE_FILE: relative/path.md]...content...

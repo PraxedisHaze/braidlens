@@ -1,0 +1,667 @@
+// ==UserScript==
+// @name         The Braid Lens (Gemini Bridge - v3.0.0 CSP & DOM Bulletproof)
+// @namespace    http://tampermonkey.net/
+// @version      3.0.0
+// @description  Trust Architecture. CSP Bypass via GM_xmlhttpRequest. Modern Selectors. Draggable UI. Resilient File System & Casey Sync.
+// @author       Gemini, Auryn & Timothy
+// @match        *://gemini.google.com/*
+// @grant        GM_xmlhttpRequest
+// ==/UserScript==
+
+/*
+ ========================================================================
+ THE BRAID LENS - PAYLOAD COMMAND MANUAL
+ ========================================================================
+ This script actively listens for the following exact payload tags in the
+ chat DOM to execute local file system operations.
+
+ 1. WRITE FILE (Overwrites or creates new)
+    [WRITE_FILE: filepath.ext]
+    ...content...
+    [/WRITE_FILE]
+
+ 2. APPEND FILE (Adds to bottom of existing file)
+    [APPEND_FILE: filepath.ext]
+    ...content...
+    [/APPEND_FILE]
+
+ 3. READ FILE (Fetches content, max 100k chars per chunk)
+    [READ_FILE: filepath.ext]
+
+ 4. READ FILE CHUNK (Pagination for large files)
+    [READ_FILE_CHUNK: filepath.ext | offset: number]
+
+ 5. LIST DIRECTORY (Maps folder contents. Use "root", ".", or "" for base)
+    [LIST_DIR: folder_path]
+
+ 6. FETCH CASEY (Queries Lenny DB fragments)
+    [FETCH_CASEY: search_query]
+ ========================================================================
+*/
+
+(function() {
+    'use strict';
+
+    console.log("%c[Gemini Lens]: WAKING UP - v3.0.0 Active (CSP & DOM Bulletproof)", "color: #10b981; font-size: 16px; font-weight: bold;");
+
+    let quaidDirectoryHandle = null;
+    let isExecutingCommand = false;
+    let isMuted = false;
+    let pendingContext = null;
+    const CHUNK_LIMIT = 100000;
+    const BOOP_INTERVAL_MS = 300000;
+    const CONTEXT_INLINE_LIMIT = 2000;
+
+    // --- 1. UI INJECTION (Draggable Handshake, Mute & Diagnose) ---
+    function makeDraggable(element) {
+        let isDragging = false;
+        let hasDragged = false;
+        let offsetX, offsetY;
+
+        element.addEventListener('mousedown', (e) => {
+            isDragging = true;
+            hasDragged = false;
+            const rect = element.getBoundingClientRect();
+            offsetX = e.clientX - rect.left;
+            offsetY = e.clientY - rect.top;
+        });
+
+        document.addEventListener('mousemove', (e) => {
+            if (!isDragging) return;
+            hasDragged = true;
+            element.style.right = 'auto';
+            element.style.left = (e.clientX - offsetX) + 'px';
+            element.style.top = (e.clientY - offsetY) + 'px';
+        });
+
+        document.addEventListener('mouseup', () => {
+            isDragging = false;
+        });
+
+        return {
+            hasDragged: () => hasDragged
+        };
+    }
+
+    function injectHandshakeButton() {
+        if (document.getElementById('braid-handshake-btn')) return;
+        const btn = document.createElement('button');
+        btn.id = 'braid-handshake-btn';
+        btn.innerText = 'Bind Working Directory';
+
+        btn.style.cssText = 'position:fixed; top:70px; right:20px; z-index:2147483647; padding:12px 18px; background-color:#10b981; color:white; border:2px solid #fff; border-radius:5px; cursor:move; font-family:monospace; font-weight:bold; box-shadow: 0 4px 10px rgba(0,0,0,0.5); user-select:none;';
+
+        const dragLogic = makeDraggable(btn);
+
+        btn.addEventListener('click', async (e) => {
+            if (dragLogic.hasDragged()) return;
+            try {
+                quaidDirectoryHandle = await window.showDirectoryPicker({ mode: 'readwrite' });
+                btn.innerText = 'Directory Bound: Gemini Active';
+                btn.style.backgroundColor = '#059669';
+                console.log("[Gemini Lens]: Directory handle secured.");
+            } catch (err) {
+                console.error("[Gemini Lens]: Handshake failed.", err);
+            }
+        });
+        document.body.appendChild(btn);
+    }
+
+    function injectMuteToggle() {
+        if (document.getElementById('braid-mute-btn')) return;
+        const btn = document.createElement('button');
+        btn.id = 'braid-mute-btn';
+        btn.innerText = 'Boop: ACTIVE';
+
+        btn.style.cssText = 'position:fixed; top:130px; right:20px; z-index:2147483647; padding:8px 12px; background-color:#10b981; color:white; border:2px solid #fff; border-radius:5px; cursor:move; font-family:monospace; font-weight:bold; box-shadow: 0 4px 10px rgba(0,0,0,0.5); user-select:none;';
+
+        const dragLogic = makeDraggable(btn);
+
+        btn.addEventListener('click', (e) => {
+            if (dragLogic.hasDragged()) return;
+            isMuted = !isMuted;
+            if (isMuted) {
+                btn.innerText = 'Boop: MUTED';
+                btn.style.backgroundColor = '#ef4444';
+                console.log("[Gemini Lens]: Heartbeat muted.");
+            } else {
+                btn.innerText = 'Boop: ACTIVE';
+                btn.style.backgroundColor = '#10b981';
+                console.log("[Gemini Lens]: Heartbeat unmuted.");
+            }
+        });
+        document.body.appendChild(btn);
+    }
+
+    // --- 2. CHAT DOM INJECTION (Multi-Selector Resilient Gate) ---
+    function findInputElement() {
+        return document.querySelector('rich-textarea > div') ||
+               document.querySelector('div[contenteditable="true"]') ||
+               document.querySelector('.text-input-field') ||
+               document.querySelector('.ql-editor') ||
+               document.querySelector('rich-textarea');
+    }
+
+    function findSendButton() {
+        return document.querySelector('button.send-button') ||
+               document.querySelector('button[aria-label*="Send"]') ||
+               document.querySelector('button[aria-label*="Submit"]') ||
+               document.querySelector('.send-button-container button') ||
+               document.querySelector('rich-textarea button') ||
+               document.querySelector('button mat-icon[data-mat-icon-name="send"]')?.closest('button') ||
+               document.querySelector('button[data-test-id="send-button"]');
+    }
+
+    function injectTextAndSend(text) {
+        const inputDiv = findInputElement();
+        if (!inputDiv) return;
+
+        inputDiv.focus();
+
+        if (inputDiv.tagName.toLowerCase() === 'rich-textarea' && 'value' in inputDiv) {
+            inputDiv.value = text;
+        } else {
+            try {
+                document.execCommand('selectAll', false, null);
+                document.execCommand('insertText', false, text);
+            } catch (e) {
+                inputDiv.textContent = text;
+            }
+        }
+
+        inputDiv.dispatchEvent(new InputEvent('input', { bubbles: true, cancelable: true, data: text }));
+        inputDiv.dispatchEvent(new Event('change', { bubbles: true }));
+
+        const POLL_INTERVAL_MS = 150;
+        const MAX_WAIT_MS = 5000;
+        let waited = 0;
+
+        const trySend = () => {
+            const sendButton = findSendButton();
+
+            if (sendButton && !sendButton.disabled) {
+                const inputEl = findInputElement();
+                const promptText = inputEl ? (inputEl.innerText || inputEl.value || '').trim() : '';
+                if (promptText && promptText.length > 3) {
+                    writeToCasey(promptText, 'memory', ['#prompt', '#braidlens', '#' + window.location.hostname.replace(/\./g, '_')]);
+                }
+                if (pendingContext && inputEl) {
+                    const prefix = '[PENNI CONTEXT — delivered with your message]\n' + pendingContext.slice(0, 6000) + '\n\n[Your message:]\n';
+                    try {
+                        document.execCommand('selectAll', false, null);
+                        document.execCommand('insertText', false, prefix + (promptText || ''));
+                    } catch (e) {}
+                    pendingContext = null;
+                }
+                sendButton.click();
+                setTimeout(() => { isExecutingCommand = false; }, 1500);
+                return;
+            }
+
+            waited += POLL_INTERVAL_MS;
+            if (waited >= MAX_WAIT_MS) {
+                console.warn("[Gemini Lens]: Send button target lost. Attempting Enter key event dispatch fallback...");
+                const enterEvent = new KeyboardEvent('keydown', {
+                    key: 'Enter', code: 'Enter', keyCode: 13, which: 13, bubbles: true, cancelable: true
+                });
+                inputDiv.dispatchEvent(enterEvent);
+                isExecutingCommand = false;
+                return;
+            }
+
+            setTimeout(trySend, POLL_INTERVAL_MS);
+        };
+
+        setTimeout(trySend, POLL_INTERVAL_MS);
+    }
+
+    // --- 3. SANITIZATION, SECURITY & TRAP DETECTION ---
+    function sanitizeContent(content) {
+        return content.replace(/\[READ_FILE/g, '&#91;READ_FILE')
+                      .replace(/\[WRITE_FILE/g, '&#91;WRITE_FILE')
+                      .replace(/\[APPEND_FILE/g, '&#91;APPEND_FILE')
+                      .replace(/\[LIST_DIR/g, '&#91;LIST_DIR');
+    }
+
+    function normalizePath(filepath) {
+        const cleanPath = filepath.trim();
+        if (cleanPath.startsWith('/') || cleanPath.startsWith('\\') || /^[a-zA-Z]:[\\/]/.test(cleanPath)) {
+            throw new Error("Absolute paths blocked to prevent OS-level overwrite.");
+        }
+        if (cleanPath.includes('..')) {
+            throw new Error("Path traversal blocked to prevent OS-level overwrite.");
+        }
+        return cleanPath;
+    }
+
+    function isRegexTrap(path) {
+        const trapTokens = ['\\s*', '[^', ']+', '.*', '(.*?)', '\\d+', 'a-zA-Z'];
+        return trapTokens.some(token => path.includes(token));
+    }
+
+    async function ensureHandlePermission() {
+        if (!quaidDirectoryHandle) return false;
+        try {
+            if ((await quaidDirectoryHandle.queryPermission({ mode: 'readwrite' })) === 'granted') {
+                return true;
+            }
+            return (await quaidDirectoryHandle.requestPermission({ mode: 'readwrite' })) === 'granted';
+        } catch (e) {
+            return false;
+        }
+    }
+
+    // --- 4. FILE SYSTEM OPERATIONS ---
+    async function executeReadTag(filepath, offset = 0) {
+        if (!quaidDirectoryHandle || !(await ensureHandlePermission())) return;
+        try {
+            const safePath = normalizePath(filepath);
+            const parts = safePath.split(/[/\\]/);
+            const filename = parts.pop();
+            let currentDir = quaidDirectoryHandle;
+
+            for (const part of parts) {
+                if (part) currentDir = await currentDir.getDirectoryHandle(part);
+            }
+
+            const fileHandle = await currentDir.getFileHandle(filename);
+            const file = await fileHandle.getFile();
+            const fullContent = await file.text();
+
+            const chunk = fullContent.substring(offset, offset + CHUNK_LIMIT);
+            let sanitizedChunk = sanitizeContent(chunk);
+            let output = `[FILE_CONTENTS: ${safePath} | Offset: ${offset}]\n${sanitizedChunk}\n[/FILE_CONTENTS]`;
+
+            if (fullContent.length > offset + CHUNK_LIMIT) {
+                output += `\n[SYSTEM_NOTICE: FILE TRUNCATED. Read next chunk with [READ_FILE_CHUNK: ${safePath} | offset: ${offset + CHUNK_LIMIT}]]`;
+            }
+            injectTextAndSend(output);
+        } catch (err) {
+            injectTextAndSend(`[SYSTEM_ERROR: Could not read ${filepath}.]`);
+        }
+    }
+
+    async function executeListTag(targetPath) {
+        if (!quaidDirectoryHandle || !(await ensureHandlePermission())) return;
+        try {
+            const safePath = normalizePath(targetPath);
+            let currentDir = quaidDirectoryHandle;
+
+            if (safePath !== "root" && safePath !== "." && safePath !== "") {
+                const parts = safePath.split(/[/\\]/);
+                for (const part of parts) {
+                    if (part) currentDir = await currentDir.getDirectoryHandle(part);
+                }
+            }
+
+            let output = `[DIRECTORY_LIST: ${safePath}]\n`;
+            for await (const entry of currentDir.values()) {
+                output += `- ${entry.name} (${entry.kind})\n`;
+            }
+            output += `[/DIRECTORY_LIST]`;
+            injectTextAndSend(output);
+        } catch (err) {
+            injectTextAndSend(`[SYSTEM_ERROR: Could not list directory.]`);
+        }
+    }
+
+    async function executeWriteTag(filepath, content) {
+        if (!quaidDirectoryHandle || !(await ensureHandlePermission())) return;
+        try {
+            const safePath = normalizePath(filepath);
+            const parts = safePath.split(/[/\\]/);
+            const filename = parts.pop();
+            let currentDir = quaidDirectoryHandle;
+
+            for (const part of parts) {
+                if (part) currentDir = await currentDir.getDirectoryHandle(part, { create: true });
+            }
+
+            const fileHandle = await currentDir.getFileHandle(filename, { create: true });
+            const writable = await fileHandle.createWritable();
+            await writable.write(content);
+            await writable.close();
+
+            injectTextAndSend(`[SYSTEM_NOTICE: Successfully wrote to ${safePath}]`);
+        } catch (err) {
+            injectTextAndSend(`[SYSTEM_ERROR: Could not write ${filepath}.]`);
+        }
+    }
+
+    async function executeAppendTag(filepath, content) {
+        if (!quaidDirectoryHandle || !(await ensureHandlePermission())) return;
+        try {
+            const safePath = normalizePath(filepath);
+            const parts = safePath.split(/[/\\]/);
+            const filename = parts.pop();
+            let currentDir = quaidDirectoryHandle;
+
+            for (const part of parts) {
+                if (part) currentDir = await currentDir.getDirectoryHandle(part, { create: true });
+            }
+
+            const fileHandle = await currentDir.getFileHandle(filename, { create: true });
+            const file = await fileHandle.getFile();
+            const writable = await fileHandle.createWritable({ keepExistingData: true });
+            await writable.seek(file.size);
+            await writable.write("\n" + content);
+            await writable.close();
+
+            injectTextAndSend(`[SYSTEM_NOTICE: Successfully appended to ${safePath}]`);
+        } catch (err) {
+            injectTextAndSend(`[SYSTEM_ERROR: Could not append to ${filepath}.]`);
+        }
+    }
+
+    // --- 5. SILENT CASEY WRITER & CONTEXT FETCHER (GM_xmlhttpRequest CSP Bypass) ---
+    function writeToCasey(content, type, tags) {
+        if (!content || content.length < 4) return;
+        GM_xmlhttpRequest({
+            method: 'POST',
+            url: 'http://127.0.0.1:3333/casey/fragments',
+            headers: { 'Content-Type': 'application/json' },
+            data: JSON.stringify({
+                content: content.slice(0, 4000),
+                type: type || 'memory',
+                tags: tags || ['#braidlens'],
+                privacy_level: 1,
+                source: 'braidlens'
+            }),
+            onerror: function(err) {}
+        });
+    }
+
+    function executeFetchCasey(query) {
+        GM_xmlhttpRequest({
+            method: 'GET',
+            url: `http://127.0.0.1:3333/casey/fragments?q=${encodeURIComponent(query)}`,
+            onload: async function(response) {
+                try {
+                    const data = JSON.parse(response.responseText);
+                    const results = (data.results || []).slice(0, 20);
+
+                    if (!results.length) {
+                        injectTextAndSend(`[PENNI] No Casey context found for: "${query}"`);
+                        isExecutingCommand = false;
+                        return;
+                    }
+
+                    const compiled = `[PENNI CONTEXT: "${query}" — ${results.length} fragments]\n\n` +
+                        results.map((f, i) => `[${i+1}] (${f.type || 'memory'}) ${(f.content || '').slice(0, 400)}`).join('\n\n') +
+                        '\n\n[/PENNI CONTEXT]';
+
+                    if (compiled.length <= CONTEXT_INLINE_LIMIT) {
+                        injectTextAndSend(compiled);
+                    } else {
+                        writeContextFile(`penni_context_${Date.now()}.md`, compiled);
+                        pendingContext = compiled;
+                        const summary = `[PENNI] Context for "${query}" is large (${results.length} fragments). Compiled and queued — will deliver with next message or boop. Summary: ${(results[0]?.content || '').slice(0, 150)}...`;
+                        injectTextAndSend(summary);
+                    }
+                } catch (e) {
+                    injectTextAndSend(`[PENNI ERROR] Casey parse failed: ${e.message}`);
+                }
+                isExecutingCommand = false;
+            },
+            onerror: function(err) {
+                injectTextAndSend(`[PENNI ERROR] Casey fetch failed via GM_xmlhttpRequest`);
+                isExecutingCommand = false;
+            }
+        });
+    }
+
+    function writeContextFile(filename, content) {
+        GM_xmlhttpRequest({
+            method: 'POST',
+            url: 'http://127.0.0.1:3333/casey/fragments',
+            headers: { 'Content-Type': 'application/json' },
+            data: JSON.stringify({
+                content: content.slice(0, 8000),
+                type: 'reference',
+                tags: ['#penni_context', '#braidlens_compiled'],
+                privacy_level: 1,
+                source: 'braidlens_fetch'
+            })
+        });
+    }
+
+    // --- 5b. THE OBSERVER & PAST-LIFE SWEEP ---
+    function serializeMessageNode(node) {
+        function walk(n) {
+            if (n.nodeType === Node.TEXT_NODE) return n.textContent;
+            if (n.nodeType !== Node.ELEMENT_NODE) return '';
+            const tag = n.tagName.toLowerCase();
+            if (tag === 'br') return '\n';
+            if (tag === 'pre' || tag === 'code') return n.textContent;
+            let inner = '';
+            for (const child of n.childNodes) { inner += walk(child); }
+            if (tag === 'strong' || tag === 'b') return '__' + inner + '__';
+            if (tag === 'em' || tag === 'i') return '_' + inner + '_';
+            if (tag === 'p' || tag === 'div' || tag === 'li') return inner + '\n';
+            return inner;
+        }
+        return walk(node);
+    }
+
+    function stripBridgeOutput(text) {
+        let stripped = text;
+        stripped = stripped.replace(/\[FILE_CONTENTS:[\s\S]*?\[\/FILE_CONTENTS\]/g, "");
+        stripped = stripped.replace(/\[DIRECTORY_LIST:[\s\S]*?\[\/DIRECTORY_LIST\]/g, "");
+        stripped = stripped.replace(/\[SYSTEM_ERROR:.*?\]/g, "");
+        stripped = stripped.replace(/\[SYSTEM_NOTICE:.*?\]/g, "");
+        return stripped;
+    }
+
+    function hasIncompleteCommandTag(text) {
+        if (/\[WRITE_FILE:/.test(text) && !/\[\/WRITE_FILE\]/.test(text)) return true;
+        if (/\[APPEND_FILE:/.test(text) && !/\[\/APPEND_FILE\]/.test(text)) return true;
+        if (/\[FILE_CONTENTS:/.test(text) && !/\[\/FILE_CONTENTS\]/.test(text)) return true;
+        if (/\[DIRECTORY_LIST:/.test(text) && !/\[\/DIRECTORY_LIST\]/.test(text)) return true;
+
+        const lastReadOpen = Math.max(text.lastIndexOf('[READ_FILE:'), text.lastIndexOf('[READ_FILE_CHUNK:'));
+        if (lastReadOpen !== -1 && text.indexOf(']', lastReadOpen) === -1) return true;
+
+        const lastListOpen = text.lastIndexOf('[LIST_DIR:');
+        if (lastListOpen !== -1 && text.indexOf(']', lastListOpen) === -1) return true;
+
+        return false;
+    }
+
+    function startObserver() {
+        const messageSelectors = '.model-response-text, .message-content, [data-test-id="model-message"], message-content, .markdown, [class*="message-content"], .response-container-content, model-response';
+
+        document.querySelectorAll(messageSelectors).forEach(node => {
+            node.dataset.quaidProcessed = "true";
+        });
+
+        let parseTimer = null;
+        const observer = new MutationObserver((mutations) => {
+            if (isExecutingCommand) return;
+
+            clearTimeout(parseTimer);
+            parseTimer = setTimeout(() => {
+                const nodes = document.querySelectorAll(messageSelectors);
+                if (nodes.length === 0) return;
+
+                const lastNode = nodes[nodes.length - 1];
+                if (lastNode.dataset.quaidProcessed === "true") return;
+
+                let textContent = serializeMessageNode(lastNode) || "";
+                textContent = stripBridgeOutput(textContent);
+
+                // Check Write
+                const writeMatch = /\[WRITE_FILE:\s*([^\]]+)\]([\s\S]*?)\[\/WRITE_FILE\]/g.exec(textContent);
+                if (writeMatch && !isRegexTrap(writeMatch[1])) {
+                    isExecutingCommand = true;
+                    lastNode.dataset.quaidProcessed = "true";
+                    executeWriteTag(writeMatch[1].trim(), writeMatch[2].trim());
+                    return;
+                }
+
+                // Check Append
+                const appendMatch = /\[APPEND_FILE:\s*([^\]]+)\]([\s\S]*?)\[\/APPEND_FILE\]/g.exec(textContent);
+                if (appendMatch && !isRegexTrap(appendMatch[1])) {
+                    isExecutingCommand = true;
+                    lastNode.dataset.quaidProcessed = "true";
+                    executeAppendTag(appendMatch[1].trim(), appendMatch[2].trim());
+                    return;
+                }
+
+                // Check Read
+                const readMatch = /\[READ_FILE:\s*([^\]]+)\]/g.exec(textContent);
+                if (readMatch && !isRegexTrap(readMatch[1])) {
+                    isExecutingCommand = true;
+                    lastNode.dataset.quaidProcessed = "true";
+                    executeReadTag(readMatch[1].trim(), 0);
+                    return;
+                }
+
+                // Check Chunk
+                const chunkMatch = /\[READ_FILE_CHUNK:\s*([^|]+)\|\s*offset:\s*(\d+)\]/g.exec(textContent);
+                if (chunkMatch && !isRegexTrap(chunkMatch[1])) {
+                    isExecutingCommand = true;
+                    lastNode.dataset.quaidProcessed = "true";
+                    executeReadTag(chunkMatch[1].trim(), parseInt(chunkMatch[2], 10));
+                    return;
+                }
+
+                // Check List
+                const listMatch = /\[LIST_DIR:\s*([^\]]+)\]/g.exec(textContent);
+                if (listMatch && !isRegexTrap(listMatch[1])) {
+                    isExecutingCommand = true;
+                    lastNode.dataset.quaidProcessed = "true";
+                    executeListTag(listMatch[1].trim());
+                    return;
+                }
+
+                // Check FETCH_CASEY
+                const fetchMatch = /\[FETCH_CASEY:\s*([^\]]+)\]/g.exec(textContent);
+                if (fetchMatch && !isRegexTrap(fetchMatch[1])) {
+                    isExecutingCommand = true;
+                    lastNode.dataset.quaidProcessed = "true";
+                    executeFetchCasey(fetchMatch[1].trim());
+                    return;
+                }
+
+                if (!hasIncompleteCommandTag(textContent) && (lastNode.innerText || "").length > 0) {
+                    lastNode.dataset.quaidProcessed = "true";
+                    writeToCasey(textContent, 'insight', ['#response', '#braidlens', '#' + window.location.hostname.replace(/\./g, '_')]);
+                }
+
+            }, 1000);
+        });
+        observer.observe(document.body, { childList: true, subtree: true });
+    }
+
+    // --- 6. THE HEARTBEAT ---
+    function startTheHeartbeat() {
+        let silenceTimer;
+        function resetSilenceTimer() {
+            clearTimeout(silenceTimer);
+            silenceTimer = setTimeout(triggerBoop, BOOP_INTERVAL_MS);
+        }
+
+        function triggerBoop() {
+            if (isMuted) {
+                resetSilenceTimer();
+                return;
+            }
+
+            if(isExecutingCommand) return;
+
+            const inputDiv = findInputElement();
+            if (inputDiv && (
+                  (inputDiv.innerText && inputDiv.innerText.trim().length > 0) ||
+                  (inputDiv.value && inputDiv.value.trim().length > 0)
+            )) {
+                console.log("[Gemini Lens]: User is typing. Skipping boop.");
+                resetSilenceTimer();
+                return;
+            }
+
+            if (pendingContext) {
+                const toDeliver = pendingContext;
+                pendingContext = null;
+                injectTextAndSend(toDeliver.slice(0, 8000));
+                resetSilenceTimer();
+                return;
+            }
+
+            injectTextAndSend(".");
+            resetSilenceTimer();
+        }
+
+        document.addEventListener('keypress', resetSilenceTimer);
+        document.addEventListener('click', resetSilenceTimer);
+        resetSilenceTimer();
+    }
+
+    // --- 7. SELF-HEALING DIAGNOSTIC ---
+    function injectDiagnoseButton() {
+        if (document.getElementById('braid-diagnose-btn')) return;
+        const btn = document.createElement('button');
+        btn.id = 'braid-diagnose-btn';
+        btn.innerText = 'Diagnose';
+        btn.style.cssText = 'position:fixed; top:190px; right:20px; z-index:2147483647; padding:8px 12px; background-color:#7c3aed; color:white; border:2px solid #fff; border-radius:5px; cursor:move; font-family:monospace; font-weight:bold; box-shadow: 0 4px 10px rgba(0,0,0,0.5); user-select:none;';
+
+        const dragLogic = makeDraggable(btn);
+
+        btn.addEventListener('click', (e) => {
+            if (dragLogic.hasDragged()) return;
+            runDiagnostic();
+        });
+        document.body.appendChild(btn);
+    }
+
+    function runDiagnostic() {
+        const checks = {
+            'Input (rich-textarea > div)': !!document.querySelector('rich-textarea > div'),
+            'Input (text-input-field)': !!document.querySelector('.text-input-field'),
+            'Input (contenteditable)': !!document.querySelector('div[contenteditable="true"]'),
+            'Input (rich-textarea)': !!document.querySelector('rich-textarea'),
+            'Send (button.send-button)': !!document.querySelector('button.send-button'),
+            'Send (aria-label*=Send)': !!document.querySelector('button[aria-label*="Send"]'),
+            'Send (aria-label*=Submit)': !!document.querySelector('button[aria-label*="Submit"]'),
+            'Send (.send-button-container button)': !!document.querySelector('.send-button-container button'),
+            'Send (rich-textarea button)': !!document.querySelector('rich-textarea button'),
+            'Send (mat-icon send button)': !!document.querySelector('button mat-icon[data-mat-icon-name="send"]'),
+            'Response (.model-response-text)': !!document.querySelector('.model-response-text'),
+            'Response (.message-content)': !!document.querySelector('.message-content'),
+            'Response (.response-container-content)': !!document.querySelector('.response-container-content'),
+            'Response (model-response)': !!document.querySelector('model-response')
+        };
+
+        const passing = Object.entries(checks).filter(([,v]) => v).map(([k]) => k);
+        const failing = Object.entries(checks).filter(([,v]) => !v).map(([k]) => k);
+
+        const bodyClasses = Array.from(document.body.classList).join(', ') || 'none';
+        const inputArea = document.querySelector('rich-textarea, .text-input-field, [role="textbox"]');
+        const inputInfo = inputArea ? `Tag: ${inputArea.tagName}, Classes: ${Array.from(inputArea.classList).join(' ')}` : 'NOT FOUND';
+
+        const report = `[BRAID LENS DIAGNOSTIC - v3.0.0]
+Platform: ${window.location.hostname}
+URL: ${window.location.pathname}
+
+PASSING SELECTORS:
+${passing.length ? passing.map(s => '   ✓ ' + s).join('\n') : '   none'}
+
+FAILING SELECTORS:
+${failing.length ? failing.map(s => '   ✗ ' + s).join('\n') : '   none'}
+
+INPUT AREA FOUND: ${inputInfo}
+BODY CLASSES: ${bodyClasses}
+
+If selectors are failing, analyze this report and adjust the Braid Lens script to match current DOM structure.`;
+
+        injectTextAndSend(report);
+        console.log('[Braid Lens Diagnostic]:', report);
+    }
+
+    // Initialize Bridge
+    setInterval(() => {
+        injectHandshakeButton();
+        injectMuteToggle();
+        injectDiagnoseButton();
+    }, 2000);
+    setTimeout(() => { startObserver(); startTheHeartbeat(); }, 3000);
+})();

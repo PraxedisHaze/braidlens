@@ -1,5 +1,62 @@
 # Changelog
 
+## 3.6.1 (2026-10-16 - Holodox Cross-Conversation Lock Release Valve)
+
+- **Cross-Conversation Lock Release Valve (`toggleHolodox`):** Preserved the background `pollHolodox()` protection that stops an active seat from accidentally injecting into a different chat if the tab navigates mid-turn, while adding an explicit `window.confirm` release valve when the user manually clicks the **Holodox** button in a new conversation (`OK` clears the stale `braid_lens_pending_<agentId>` lock and binds the seat to the current conversation; `Cancel` preserves the old conversation's lock).
+- **Same-Conversation Unverified Lock Escape:** Added a secondary `window.confirm` inside `toggleHolodox()` if an earlier unverified submission lock in the same conversation is canceled/left blank, allowing the user to clear a stuck lock without opening DevTools.
+
+## 3.6.0 (2026-10-16 - Opt-In ChatGPT Continuity & Local Return Brief)
+
+- Integrated opt-in conversation continuity (`continuity/continuity.js`) and shared local return brief (`runtime/penni-continuity/return-brief.json`) into `install/universal.user.js`.
+
+## 3.5.0 (2026-10-07 - Dedicated Penni Bridge & Fleet Unification)
+
+- **Dedicated Penni (NotebookLM) Adapter (Two-Key Audit):** Applied ChatGPT's 2026 empirical probe refinements:
+  - Tightened chat input selectors (`textarea.query-box-input`, `textarea[aria-label="Query box"]`, `textarea[placeholder="Ask a question or create something"]`, `textarea[placeholder="Start typing..."]`, `.query-input textarea`), eliminating false-positive selection of source-pasting textareas.
+  - Framework-aware mutation: added native property setter (`HTMLTextAreaElement.prototype` descriptor) with bubbling `InputEvent` (`inputType: 'insertText'`) to ensure Google's Lit/Wiz internal state updates reactively.
+  - Scoped send button detection (`button.submit-button[aria-label="Submit"]`) and `isUsableButton` validation (`!disabled`, `aria-disabled !== 'true'`, `!classList.contains('disabled')`).
+  - Scoped `isGenerating()` detection inside `chat-panel` / `[role="log"]` / `.chat-panel-content`.
+  - Canonical response container targeting: `.to-user-container` (model output) vs `.from-user-container` (user prompt).
+  - Overlay protection: added `dismissNotebookLMOverlay()` to dispatch `Escape` and clear stuck `.cdk-overlay-container .citation-tooltip-text` popovers.
+- **Gemini Host Partitioning:** Refined `gemini` adapter match to strictly target `gemini.google.com`, ensuring NotebookLM tabs route cleanly to Penni without selector collisions.
+- **Backported Spell-Casting Syntax:** Integrated bracket-free spell phrases (`MIRROR MIRROR:`, `ABRACADABRA:`, `PRESTO CHANGO:`, `SO MOTE IT BE`) alongside standard bracket tags across all supported AI chats.
+- **In-Flight Concurrency Locks:** Ported synchronous `in-flight` stamping and in-memory signature sets (`inFlightSignatures`, `completedSignatures`) to eliminate React/Virtual DOM double-firing and dual-hook race conditions.
+- **Fleet Unification:** Consolidated all platform improvements into a single universal script (`braid_lens_universal_v3.5.user.js` and `install/universal.user.js`).
+
+## 3.4.2 (2026-10-05 - Duplicate Receipt Neutralization & In-Flight Concurrency Locks)
+
+- **Synchronous In-Flight Lock:** Stamped `data-braid-lens-processed="in-flight"` the exact millisecond a command is matched, closing the re-entrancy window during asynchronous directory reading and preventing double-firing from simultaneous mutation observers and polling intervals.
+- **In-Memory Signature Deduplication:** Added `inFlightSignatures` and `completedSignatures` Sets to track turn text signatures, guaranteeing that cloned or remounted React virtual-DOM nodes with identical command text are never executed twice in the same session.
+- **Resilient Fallback Cleansing:** Updated `clearStaleProcessed()` to respect completed and in-flight signatures so past processed turns are never re-queued when clicking Diagnose or refreshing.
+- **Error Rollback:** Automatically strips the `in-flight` attribute and clears signatures if an operation encounters a fatal permission or disk error, allowing intentional user retries.
+
+## 3.4.1 (2026-10-05 - Muse Braid Lens Runtime Fix & Execution Hardening)
+
+- **Root Cause Fix (PANEL_ID Undefined):** Declared `var PANEL_ID = 'braid-lens-muse-panel';` at top level, eliminating the `ReferenceError: PANEL_ID is not defined` crash in `'use strict'` mode that halted the mutation observer and command processing.
+- **Root Cause Fix (Send Button Null Reference):** Replaced unfiltered candidate array access with `candidates.filter(Boolean).find(...)` to prevent `TypeError: Cannot read properties of null (reading 'toLowerCase')`.
+- **Root Cause Fix (Dual-Hook Collision Detection):** Identified conflict where older v1.0.0 userscript was running simultaneously with v3.4.0 in Tampermonkey, marking incoming assistant turns with `data-braid-lens-processed="true"` before directory operations could complete. Added instructions and auto-clearing logic (`clearStaleProcessed`) on boot and Diagnose click.
+- **Deferred Command Completion:** Updated `executeList`, `executeRead`, and `executeWrite` to only stamp `data-braid-lens-processed="true"` upon verified receipt dispatch, preventing dropped commands if directory permissions require user interaction.
+- **Interval Polling:** Added 2-second background polling interval to `startObserver` to ensure continuous command detection even when React virtual DOM mutations bypass standard DOM mutation listeners.
+- **Live Parity:** Vernier Fisheye Scrubber, native Holodox 2 Meeting Hall seat on port 43921 as `[muse]` with token auth, File System Access API with persistent IndexedDB directory handle (`braid-lens-muse`), and Gumroad daily rolling report sentinel.
+
+## 3.4.0 (2026-10-04 - The Universal Braid Lens Release)
+
+- Unified all individual Braid Lens adapters into a single universal userscript (`braid_lens_universal_v3.4.user.js` and `install/universal.user.js`).
+- Dynamic host detection with automatic adapter mapping for ChatGPT, Claude, Gemini/NotebookLM, Grok, Duck.ai, Perplexity, DeepSeek, and generic web AI chats.
+- Dynamic Holodox 2 Meeting Hall seat integration with platform-specific tokens, agent IDs, and heartbeats.
+- Complete File System Access API drive bridge (`[LIST_DIR:]`, `[READ_FILE:]`, `[READ_FILE_CHUNK:]`, `[WRITE_FILE:]`, `[APPEND_FILE:]`) with stream-aware chunking and path safety.
+- Cross-platform Casey memory query bridge (`[FETCH_CASEY: query]`) communicating with Lenny on port 3333.
+- Integrated Vernier Fisheye Minimap Scrubber with mousewheel zoom (1.5x–6.0x), turn inspection popover, and smooth-scroll turn jumping across all platforms.
+- Dynamic draggable HUD styled with the host platform's color palette, Orient button tailored per AI, boop presence pulse, and live diagnostics.
+
+## 3.3.0 (2026-10-04 - Grok Braid Lens & Vernier Scrubber Release)
+
+- Created dedicated Grok Braid Lens (`braid_lens_grok_v3.3.user.js` and `install/grok.user.js`) targeting `grok.com`, `x.ai`, `x.com/i/grok`, and `twitter.com/i/grok`.
+- Full File System Access API drive bridge (`[LIST_DIR:]`, `[READ_FILE:]`, `[READ_FILE_CHUNK:]`, `[WRITE_FILE:]`, `[APPEND_FILE:]`).
+- Full native Holodox 2 Meeting Hall seat integration as `[grok]` connecting to local relay on port `43921` with token authentication.
+- Built-in Vernier Fisheye Minimap Scrubber with mousewheel zoom (1.5x–6.0x), turn inspection popover, and smooth-scroll turn jumping.
+- Draggable HUD with Bind Folder, Orient Grok, Holodox Seat toggle, Scrubber toggle, Boop toggle, and Diagnostics.
+
 ## 3.0.0 (2026-09-18 - Unified Parity Release)
 
 - Harmonized all four Braid Lens userscripts (`claude.user.js`, `gemini.user.js`, `chatgpt.user.js`, `perplexity.user.js`) to mirror Claude's architecture in each native context.
